@@ -7,7 +7,7 @@ if `SLACK_CHANNEL_ID` is `<TBD>` the run stops without an alert (there is nowher
 ```
 # REQUIRED
 QUEUE_LIST        = <TBD>      # Marketo static list name or ID, e.g. "Enrichment Queue"
-SHEET             = <TBD>      # URL of the rolling Google Sheet (created once from the doc 02 template)
+SHEET             = https://docs.google.com/spreadsheets/d/1AU3BapMbdo2b0hlpkVEoGJnzO1Fba2P4GwITMNtow-Q/edit   # rolling sheet "Buildium MQL Contact Repair (Rolling)"
 SLACK_CHANNEL_ID  = C0CJBLWSNSY   # #claude-run-log (private channel); run summaries and alerts post here
 
 # RUN SIZE
@@ -29,8 +29,8 @@ INVALID_EMAIL_VALUES   = invalid
 INVALID_PHONE_FIELDS   = phone                    # the field a phone REPLACE may change (mobilePhone is NOT covered)
 INVALID_PHONE_FLAG_FIELD = BVPhoneStatus          # Marketo API name; display name "BV Phone Status" (confirmed by operator)
 INVALID_PHONE_VALUES   = invalid
-# Add BVPhoneStatus to the intake fields (doc 03 section 2) and to the Current_Values / Final_Contacts columns.
-# If either BV status can't be read for a lead, no REPLACE of that kind for that lead.
+# Add BVPhoneStatus to the intake fields (doc 03 section 2) and to the Current_Values / Final_Contacts columns
+# (the sheet already has it). If either BV status can't be read for a lead, no REPLACE of that kind for that lead.
 
 # CLOUD ENVIRONMENT (set in the claude.ai environment dialog, listed here for reference)
 # Network access: Custom (+ default list) or Full - decide after the host test. Hosts the scripts need:
