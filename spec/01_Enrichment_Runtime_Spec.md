@@ -3,7 +3,7 @@
 *v1.1 (2026-10-05): browser fallback for walled sources; L10 uses Verisign RDAP; C13 — a title verified at a different company is never written to `title`/`Role__c`.*
 *v1.2 (2026-10-08): **EMPTY-ONLY WRITES.** A researched value is written only into an empty field; otherwise it goes to Notes (`NOTE_ONLY`). Multi-select fields with a value are never modified (C7, C14).*
 *v1.3 (2026-10-09): **NO APPROVAL STEP.** `WRITEBACK` writes every staged `FILL`, `FLAG`, `APPEND_NOTE` row not on `hold`. `current_software` and `Technologies__c` are write-target fields (C15).*
-*v1.4 (2026-11-16, operator decisions): **UNATTENDED NIGHTLY MODE** for MQLs with invalid phone/email, run as a Claude Code cloud scheduled task with no browser and no human present (§0, C17). **HEADLESS RUNGS** (`scripts/`) replace the browser fallback (§7a). **INVALID-VALUE REPLACEMENT** — the one exception to empty-only: a phone or email that Marketo has flagged invalid may be replaced with a verified valid one, including `email` (C16, new action `REPLACE`). **ROLLING SHEET** with a ledger and run lock instead of one sheet per run (doc 02).*
+*v1.4 (2026-11-16, operator decisions): **UNATTENDED NIGHTLY MODE** for MQLs with invalid phone/email, run as a Claude Code cloud scheduled task with no browser and no human present (§0, C17). **HEADLESS RUNGS** (`scripts/`) replace the browser fallback (§7a). **INVALID-VALUE REPLACEMENT** — the one exception to empty-only: a phone or email that Marketo has flagged invalid may be replaced with a verified valid one, including `email` (C16, new action `REPLACE`). **ROLLING SHEET** with a ledger and run lock instead of one sheet per run (doc 02). **ID-FIRST INTAKE** — NIGHTLY pulls queue member IDs only, compares them to the ledger, and fetches full fields for the batch alone (Step 1N).*
 
 Derived from *Buildium Net-New Lead Discovery Runtime Spec v5*. Discovery, CRM suppression, county checkpointing and scoring are **removed**. Kept: the Enrichment Ladder, tiers, privacy / no-fabrication / aggregator rules, tech-stack and ownership detection, completion-gate discipline.
 
@@ -59,7 +59,7 @@ OUTPUT           = Google Sheet (schema: doc 02). Interactive: one sheet per run
 - **C13 — TITLE MUST BELONG TO THE RECORD'S COMPANY.** Propose `title` (and `Role__c`) only when the verified title is held at the company on the record. A title verified at a *different* company goes to Notes as `Also: <title> at <other company>`; the fields stay blank/unchanged.
 - **C14 — MULTI-SELECT FIELDS (`Property_Types_Managed__c`, `Professional_Membership__c`).** If **empty**, `FILL` with only values that exactly match the allowed picklist values in doc 03. If it **already has any value**, do not touch it; values not already selected go to Notes (`NOTE_ONLY`).
 - **C15 — SOFTWARE FIELDS (`current_software`, `Technologies__c`).** Free text. Empty → `FILL` with plain vendor names per doc 03 §3c; populated → Notes only (`NOTE_ONLY`), judged per field. `current_software` receives **every** detected property-management tool; `Technologies__c` is the full superset. Job-post-only, partner-network-listing-only, archived-page-only or CRM-notes-only evidence → Notes only. Registrar/DNS-only entries, offline sites and "none found" are never written.
-- **C16 — INVALID-VALUE REPLACEMENT (the only exception to C7).** A phone or email that Marketo has **flagged invalid** is treated as replaceable: the agent may stage action `REPLACE` for that field. Flags and field names come from `config/nightly_config.md` (email: `INVALID_EMAIL_FIELD` ∈ `INVALID_EMAIL_VALUES`; phone: `INVALID_PHONE_FIELDS` / `INVALID_PHONE_CRITERIA`). A `<TBD>` config value **disables** that replacement (the finding goes to Notes as `NOTE_ONLY`). Every one of these must hold:
+- **C16 — INVALID-VALUE REPLACEMENT (the only exception to C7).** A phone or email that Marketo has **flagged invalid** is treated as replaceable: the agent may stage action `REPLACE` for that field. Flags and field names come from `config/nightly_config.md` (email: `INVALID_EMAIL_FIELD` ∈ `INVALID_EMAIL_VALUES`; phone: `INVALID_PHONE_FLAG_FIELD` ∈ `INVALID_PHONE_VALUES`, replacing the field(s) in `INVALID_PHONE_FIELDS`). A `<TBD>` config value **disables** that replacement (the finding goes to Notes as `NOTE_ONLY`). Any other status value (for example `risky`) is **not** invalid and is never replaced. Every one of these must hold:
   1. **Flag true** at intake and again at write time (doc 03 §6). A value not flagged invalid is never replaced.
   2. **Identity CONFIRMED** (not PROBABLE) — stricter than `FILL`.
   3. **Tier:** `email` — **V1 and person-specific** (the lead's own address from a company page, licensing/association record or own business profile). Role aliases (info@, office@) and V2/V3/X are **never** used to replace a person's email; they go to Notes. Phone — V1 direct business phone, or V2 company main line with `role_based = Y`.
@@ -89,11 +89,16 @@ OUTPUT           = Google Sheet (schema: doc 02). Interactive: one sheet per run
 3. Group leads by **company key** = business email domain if not a free-mail domain (gmail, yahoo, hotmail, outlook, aol, icloud, comcast, msn, live, me, att, sbcglobal…); else normalized company name + state.
 4. Process up to BATCH_SIZE leads this session, in company-key order.
 
-### Step 1N — INTAKE (NIGHTLY)
+### Step 1N — INTAKE (NIGHTLY): IDs first, fields for the batch only
+The queue list may hold finished leads alongside new ones; the sheet ledger decides which are new. Never pull the full intake field set for the whole list.
 1. Run the PRECHECK. Set `Run_Summary.run_lock` = `<RUN_ID> <ISO timestamp>`. Read `kill_switch`.
-2. Pull `QUEUE_LIST` members (intake field set, doc 03 §2). Read the **ledger** (`Lead_Summary`): skip any lead whose `enrichment_status` is `COMPLETE`, `COMPLETE_NO_NEW_DATA` or `UNRESOLVED`. A lead `IN_PROGRESS` restarts at its first rung without a `Source_Ladder_Log` row. (To retry a finished lead, a person clears its status.)
-3. Append new leads to `Lead_Summary` as `PENDING`, snapshot `Current_Values`, and compute `email_invalid` / `phone_invalid` (yes/no) from the C16 flags.
-4. Take the next BATCH_SIZE leads (company-key order, `IN_PROGRESS` first) and continue with Step 0. Leads in the queue with neither flag are enriched under the ordinary empty-only rules.
+2. **IDs only.** Pull the `QUEUE_LIST` members with `get_list_members` using `fields=id`, `batchSize=300`, paging with `nextPageToken` until it is exhausted.
+3. **Read the ledger — two columns only.** From `Lead_Summary` read column A (`marketo_lead_id`) and column N (`enrichment_status`). A queue lead whose status is `COMPLETE`, `COMPLETE_NO_NEW_DATA` or `UNRESOLVED` is finished and skipped. (To retry a finished lead, a person clears its status.)
+4. **Choose the batch.** Work set, in this order: leads with status `IN_PROGRESS` (each restarts at its first rung without a `Source_Ladder_Log` row); leads with status `PENDING` (added by an earlier run that stopped before researching them); then queue leads that are not in the ledger at all, in queue order. Take at most `BATCH_SIZE`.
+5. **If the work set is empty:** append a `Run_Log` row (0 leads), clear `run_lock`, and stop. Post nothing to Slack on an empty run (alerts for failures are unaffected).
+6. **Fetch fields for the batch only.** Call `get_leads_by_filter` with filterType `id`, the batch IDs (≤300 per call) and the intake field set (doc 03 §2, plus the field named in `INVALID_PHONE_FLAG_FIELD`). If Marketo rejects a field, drop it, retry, and list it in `Run_Summary.dropped_intake_fields`.
+7. For each new lead (not already in the ledger): append it to `Lead_Summary` as `PENDING`, snapshot its values to `Current_Values` **once** (never edited afterwards), and compute `email_invalid` / `phone_invalid` from the C16 flags. A lead already in the ledger keeps its row; refresh `email_invalid` / `phone_invalid` from the fetched values.
+8. Group the batch by company key (Step 1.3) and continue with Step 0.
 
 ### Step 1R — RESUME
 Open SHEET → read `Lead_Summary` → process leads whose status is `PENDING` or `IN_PROGRESS`. Reuse `Company_Cache`.
@@ -119,7 +124,7 @@ Run §8. Any fail → fix or return to the failing rung. Then write the lead's r
 
 ### Step 6 — SESSION END
 **Interactive:** when BATCH_SIZE is reached, the list is done, or a stop condition fires, finish checkpointing, update `Run_Summary` (done/pending counts, stop reason, *"Start a new chat: RESUME sheet=<url>"*) and tell the operator in chat: done count, pending count, stop reason, sheet link.
-**NIGHTLY:** (a) finish checkpointing; (b) if `AUTO_WRITEBACK = true`, run doc 03 §6 on this run's staged rows; (c) append a `Run_Log` row (doc 02 Tab 10); (d) clear `run_lock`; (e) post the end-of-run summary to Slack — leads processed, status counts, REPLACE / FILL / NOTE_ONLY counts, flags raised, writes written/skipped/error, most-missed fields, stop reason, sheet link. On any early stop, post an **alert** instead that says why, what is done, what is pending.
+**NIGHTLY:** (a) finish checkpointing; (b) if `AUTO_WRITEBACK = true`, run doc 03 §6 on this run's staged rows; (c) append a `Run_Log` row (doc 02 Tab 10); (d) clear `run_lock`; (e) if the run processed at least one lead, post the end-of-run summary to Slack — leads processed, status counts, REPLACE / FILL / NOTE_ONLY counts, flags raised, writes written/skipped/error, most-missed fields, stop reason, sheet link (an empty run posts nothing, Step 1N.5). On any early stop, post an **alert** instead that says why, what is done, what is pending.
 
 ## 5. TIERS
 
@@ -213,6 +218,6 @@ Scripts print one JSON object (`outcome` ∈ `HIT (script)`, `NO_DATA (script)`,
 ## 9. COMPLETION GATE (run level)
 
 - Every lead in this session's batch is COMPLETE / COMPLETE_NO_NEW_DATA / UNRESOLVED, or the session stopped with a written stop reason.
-- Interactive: `Run_Summary` shows totals, coverage %, stop reason, and the exact RESUME command. NIGHTLY: a `Run_Log` row exists, `run_lock` is cleared, and the Slack summary or alert was posted.
+- Interactive: `Run_Summary` shows totals, coverage %, stop reason, and the exact RESUME command. NIGHTLY: a `Run_Log` row exists, `run_lock` is cleared, and the Slack summary (if the run processed leads) or alert was posted.
 - The `Final_Contacts` tab (doc 02, Tab 9) shows every lead as it will look after write-back.
 - Never claim "fully enriched"; report counts by status and the fields most often NOT_FOUND.
