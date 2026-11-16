@@ -8,7 +8,7 @@ if `SLACK_CHANNEL_ID` is `<TBD>` the run stops without an alert (there is nowher
 # REQUIRED
 QUEUE_LIST        = <TBD>      # Marketo static list name or ID, e.g. "Enrichment Queue"
 SHEET             = <TBD>      # URL of the rolling Google Sheet (created once from the doc 02 template)
-SLACK_CHANNEL_ID  = <TBD>      # channel (or your user ID for a DM) for run summaries and alerts
+SLACK_CHANNEL_ID  = C0CJBLWSNSY   # #claude-run-log (private channel); run summaries and alerts post here
 
 # RUN SIZE
 BATCH_SIZE        = 25         # leads per session
@@ -27,11 +27,10 @@ ERROR_HALT        = 3          # stop writing after this many ERROR rows in one 
 INVALID_EMAIL_FIELD    = BVEmailStatus            # Marketo API name; display name "BV Email Status"
 INVALID_EMAIL_VALUES   = invalid
 INVALID_PHONE_FIELDS   = phone                    # the field a phone REPLACE may change (mobilePhone is NOT covered)
-INVALID_PHONE_CRITERIA = display name "BV Phone Status" = invalid
-# Resolve the API name of "BV Phone Status" at precheck: call Marketo describe_lead and match the displayName exactly.
-# Exactly one match -> add that API name to the intake fields and use it. Zero or several matches, or describe_lead
-# fails -> phone REPLACE stays OFF for this run (phone findings go to Notes as NOTE_ONLY) and the Slack summary says so.
-# The email flag needs no lookup. If BV Email Status can't be read for a lead, no email REPLACE for that lead.
+INVALID_PHONE_FLAG_FIELD = BVPhoneStatus          # Marketo API name; display name "BV Phone Status" (confirmed by operator)
+INVALID_PHONE_VALUES   = invalid
+# Add BVPhoneStatus to the intake fields (doc 03 section 2) and to the Current_Values / Final_Contacts columns.
+# If either BV status can't be read for a lead, no REPLACE of that kind for that lead.
 
 # CLOUD ENVIRONMENT (set in the claude.ai environment dialog, listed here for reference)
 # Network access: Custom (+ default list) or Full - decide after the host test. Hosts the scripts need:
