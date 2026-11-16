@@ -30,3 +30,15 @@ Nobody is watching. Nobody will answer a question or click Allow.
     `writeback_validated_spec`, `run_lock`, `kill_switch` (read only — a person sets it). Add each new lead to `Current_Values` once and never edit it afterwards.
 12. **Zapier calls can stall.** If a Zapier call returns no result or an approval/timeout message, treat it as a blocked tool call
     (rule 4): checkpoint, post the Slack alert, stop. Do not retry more than once.
+13. **Marketo access in cloud runs.** The Marketo MCP server runs on a person's desktop and is NOT available here. Wherever the
+    spec says `get_list_members`, `get_leads_by_filter` or the Marketo write call, use the Zapier Marketo tools
+    (`marketo_make_api_get_request` for reads, `marketo_make_api_mutating_request` for writes) with the **full HTTPS URL**
+    on `MARKETO_REST_BASE` from the config (a relative URL is rejected). Mapping:
+    - list members → `GET {base}/rest/v1/list/{listId}/leads.json?fields=<comma list>&batchSize=<n>&nextPageToken=<token>`
+      (page until `nextPageToken` is empty)
+    - leads by ID or email → `GET {base}/rest/v1/leads.json?filterType=id|email&filterValues=<comma list>&fields=<comma list>`
+    - field metadata (only if needed) → `GET {base}/rest/v1/leads/describe.json`
+    - write-back → `POST {base}/rest/v1/leads.json` with the body in spec doc 03 §6.6
+    Always set `output_hint` to ask for every field you need, verbatim, plus `nextPageToken` and any error — Zapier builds a filter from
+    the hint and will drop anything you don't name. Check `success` in every response. Verified 2026-11-16: reading list 31546
+    this way returned the same members and `BVEmailStatus` / `BVPhoneStatus` values as the Marketo MCP.
