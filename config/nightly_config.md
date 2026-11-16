@@ -1,7 +1,8 @@
 # NIGHTLY CONFIG (read at the start of every run)
 
-Values in `<TBD>` are not set yet. Behavior that depends on a `<TBD>` value is **disabled** (fail-safe);
-the three REQUIRED values must be set or the run stops with a Slack alert... except Slack itself, in which case the run stops silently with a failed status.
+Values in `<TBD>` are not set yet. Behavior that depends on an optional `<TBD>` value is **disabled** (fail-safe).
+The three REQUIRED values must be set: if `QUEUE_LIST` or `SHEET` is `<TBD>` the run stops and posts a Slack alert;
+if `SLACK_CHANNEL_ID` is `<TBD>` the run stops without an alert (there is nowhere to post), so set it first.
 
 ```
 # REQUIRED
@@ -28,7 +29,7 @@ INVALID_PHONE_FIELDS = <TBD>             # which Marketo phone field(s) the inva
 INVALID_PHONE_CRITERIA = <TBD>           # how Marketo marks a phone invalid (field + values)
 
 # CLOUD ENVIRONMENT (set in the claude.ai environment dialog, listed here for reference)
-# Network access: Custom (+ default list) or Full — decide after the host test. Hosts the scripts need:
+# Network access: Custom (+ default list) or Full - decide after the host test. Hosts the scripts need:
 #   crt.sh, web.archive.org, archive.org, rdap.verisign.com, rdap.org, data.iana.org, dns.google
 # plus any state open-data portals added later. No secrets in environment variables.
 ```
