@@ -21,12 +21,17 @@ AUTO_WRITEBACK    = false      # false = stage only (a person types WRITEBACK). 
 WRITE_CAP_PER_RUN = 100        # max Field_Changes rows written in one run
 ERROR_HALT        = 3          # stop writing after this many ERROR rows in one run (or >20% of attempted)
 # Kill switch: Run_Summary key `kill_switch` in the sheet. Any non-blank value = no writes this run (staging continues).
+# The hard stop is pausing the scheduled task itself in claude.ai.
 
-# INVALID-VALUE FLAGS (spec C16)
-INVALID_EMAIL_FIELD  = BVEmailStatus
-INVALID_EMAIL_VALUES = invalid           # confirm against live data before enabling AUTO_WRITEBACK
-INVALID_PHONE_FIELDS = <TBD>             # which Marketo phone field(s) the invalid flag applies to
-INVALID_PHONE_CRITERIA = <TBD>           # how Marketo marks a phone invalid (field + values)
+# INVALID-VALUE FLAGS (spec C16) - confirmed by operator 2026-11-16
+INVALID_EMAIL_FIELD    = BVEmailStatus            # Marketo API name; display name "BV Email Status"
+INVALID_EMAIL_VALUES   = invalid
+INVALID_PHONE_FIELDS   = phone                    # the field a phone REPLACE may change (mobilePhone is NOT covered)
+INVALID_PHONE_CRITERIA = display name "BV Phone Status" = invalid
+# Resolve the API name of "BV Phone Status" at precheck: call Marketo describe_lead and match the displayName exactly.
+# Exactly one match -> add that API name to the intake fields and use it. Zero or several matches, or describe_lead
+# fails -> phone REPLACE stays OFF for this run (phone findings go to Notes as NOTE_ONLY) and the Slack summary says so.
+# The email flag needs no lookup. If BV Email Status can't be read for a lead, no email REPLACE for that lead.
 
 # CLOUD ENVIRONMENT (set in the claude.ai environment dialog, listed here for reference)
 # Network access: Custom (+ default list) or Full - decide after the host test. Hosts the scripts need:
