@@ -6,7 +6,8 @@ if `SLACK_CHANNEL_ID` is `<TBD>` the run stops without an alert (there is nowher
 
 ```
 # REQUIRED
-QUEUE_LIST        = <TBD>      # Marketo static list name or ID, e.g. "Enrichment Queue"
+QUEUE_LIST        = 31546      # Marketo static list ST31546, "01. Leads to Enrich - Claude Agent" (API list ID is the number)
+                               # May hold both new and already-finished leads: the sheet ledger decides what is new (spec Step 1N).
 SHEET             = https://docs.google.com/spreadsheets/d/1AU3BapMbdo2b0hlpkVEoGJnzO1Fba2P4GwITMNtow-Q/edit   # rolling sheet "Buildium MQL Contact Repair (Rolling)"
 SLACK_CHANNEL_ID  = C0CJBLWSNSY   # #claude-run-log (private channel); run summaries and alerts post here
 
@@ -25,12 +26,12 @@ ERROR_HALT        = 3          # stop writing after this many ERROR rows in one 
 
 # INVALID-VALUE FLAGS (spec C16) - confirmed by operator 2026-11-16
 INVALID_EMAIL_FIELD    = BVEmailStatus            # Marketo API name; display name "BV Email Status"
-INVALID_EMAIL_VALUES   = invalid
+INVALID_EMAIL_VALUES   = invalid                  # other statuses (e.g. "risky") are NOT invalid and are never replaced
 INVALID_PHONE_FIELDS   = phone                    # the field a phone REPLACE may change (mobilePhone is NOT covered)
 INVALID_PHONE_FLAG_FIELD = BVPhoneStatus          # Marketo API name; display name "BV Phone Status" (confirmed by operator)
 INVALID_PHONE_VALUES   = invalid
-# Add BVPhoneStatus to the intake fields (doc 03 section 2) and to the Current_Values / Final_Contacts columns
-# (the sheet already has it). If either BV status can't be read for a lead, no REPLACE of that kind for that lead.
+# Both field names verified readable in Marketo on 2026-11-16 (list 31546 returned BVEmailStatus and BVPhoneStatus).
+# If either BV status can't be read for a lead, no REPLACE of that kind for that lead.
 
 # CLOUD ENVIRONMENT (set in the claude.ai environment dialog, listed here for reference)
 # Network access: Custom (+ default list) or Full - decide after the host test. Hosts the scripts need:
